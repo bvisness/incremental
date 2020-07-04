@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Incremental Rendering Tests</title>
+
+    <link rel="stylesheet" href="/tachyons.min.css">
+    <style>
+        .fb-0 {
+            flex-basis: 0;
+        }
+
+        .fg-1 {
+            flex-grow: 1;
+        }
+
+        .fs-1 {
+            flex-shrink: 1;
+        }
+
+        h4 {
+            margin: 0.8em 0 0.4em;
+        }
+
+        p {
+            margin: 0.4em 0;
+        }
+    </style>
+
+    <script src="/react.development.js"></script>
+    <script src="/react-dom.development.js"></script>
+    <script>
+        const e = React.createElement;
+
+        const MAX_INCREMENTAL = 50;
+    </script>
+</head>
+
+<body>
+    <div class="flex">
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>Vanilla (Naive)</h2>
+            <div id="vn-container">
+                <input id="vn-query">
+                <div id="vn-results"></div>
+            </div>
+        </div>
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>Vanilla (Naive 2)</h2>
+            <div id="vn2-container">
+                <input id="vn2-query">
+                <div id="vn2-results"></div>
+            </div>
+        </div>
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>Vanilla (Incremental)</h2>
+            <div id="vi-container">
+                <input id="vi-query">
+                <div id="vi-results"></div>
+            </div>
+        </div>
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>React (Naive)</h2>
+            <div id="rn-container"></div>
+        </div>
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>React (Naive, Faster Diffing)</h2>
+            <div id="rd-container"></div>
+        </div>
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>React (Naive Incremental)</h2>
+            <div id="rni-container"></div>
+        </div>
+        <div class="fb-0 fs-1 fg-1 ph2">
+            <h2>React (Incremental Portals)</h2>
+            <div id="ri-container"></div>
+        </div>
+    </div>
+
+    <script src="/project.js"></script>
+
+    <!-- Vanilla (Incremental) -->
+    <script>
+        var project = getProject();
+
+        var renderHandle;
+
+        function runSearch(queryStr) {
+            var numEpisodes = 0;
+            var numMarkers = 0;
+            var totalSeconds = 0;
+
+            // NOTE(matt):  Function defined within runSearch() so that we can modify numEpisodes, numMarkers and totalSeconds
+            function runSearchInterior(resultsToRender, query, episode)
+            {
+                var matches = [];
+                for (var k = 0; k < episode.markers.length; ++k) {
+                    query.lastIndex = 0;
+                    var result = query.exec(episode.markers[k].text);
+                    if (result && result[0].length > 0) {
+                        numMarkers++;
+                        matches.push(episode.markers[k]);
+                        if (k < episode.markers.length-1) {
+                            totalSeconds += episode.markers[k+1].totalTime - episode.markers[k].totalTime;
+                        }
+                    }
+                }
+                if (matches.length > 0) {
+                    numEpisodes++;
+                    resultsToRender.push({
+                        query: query,
+                        episode: episode,
+                        matches: matches
+                    });
+                }
+            }
+
+            var results = [];
+            if (queryStr && queryStr.length > 0) {
+                var query = new RegExp(queryStr.replace("(", "\\(").replace(")", "\\)").replace(/\|+/, "\|").replace(/\|$/, "").replace(/(^|[^\\])\\$/, "$1"), "gi");
+
+                if(project.parsed && !project.filteredOut && project.episodes.length > 0) {
+                    for(var j = 0; j < project.episodes.length; ++j) {
+                        var episode = project.episodes[j];
+                        runSearchInterior(results, query, episode);
+                    }
+                }
+            }
+
+            var totalTime = Math.floor(totalSeconds/60/60) + "h " + Math.floor(totalSeconds/60)%60 + "m " + totalSeconds%60 + "s ";
+
+            return [results, "Found: " + numEpisodes + " episodes, " + numMarkers + " markers, " + totalTime + "total."];
+        }
+
+        function renderNaive(results) {
+            document.querySelector('#vn-results').innerHTML = '';
+
+            for (const r of results) {
+                const resultEl = document.createElement('div');
+                resultEl.innerHTML = `
+                    <h4>${r.episode.title}</h4>
+                    ${
+                        r.matches.map(m => `<p>${m.prettyTime} ${m.text}</p>`).join('')
+                    }
+                `;
+                document.querySelector('#vn-results').appendChild(resultEl);
+            }
+        }
+
+        function renderNaive2(results) {
+            // Now with less HTML parsing.
+
+            document.querySelector('#vn2-results').innerHTML = '';
+
+            for (const r of results) {
+                const resultEl = document.createElement('div');
+
+                const header = document.createElement('h4');
+                header.innerText = r.episode.title;
+                resultEl.appendChild(header);
+
+                for (const m of r.matches) {
+                    const p = document.createElement('p');
+                    p.innerText = `${m.prettyTime} ${m.text}`;
+                    resultEl.appendChild(p);
+                }
+
+                document.querySelector('#vn2-results').appendChild(resultEl);
+            }
+        }
+
+        function renderIncremental(results, i = 0) {
+            var numItems = 0;
+
+            if (i === 0) {
+                document.querySelector('#vi-results').innerHTML = '';
+                clearTimeout(renderHandle);
+            }
+
+            if (i < results.length) {
+                rendering = true;
+
+                while (numItems < MAX_INCREMENTAL && i < results.length) {
+                    var query = results[i].query;
+                    var episode = results[i].episode;
+                    var matches = results[i].matches;
+
+                    const resultEl = document.createElement('div');
+                    resultEl.innerHTML = `
+                        <h4>${episode.title}</h4>
+                        ${
+                            matches.map(m => `<p>${m.prettyTime} ${m.text}</p>`).join('')
+                        }
+                    `;
+                    document.querySelector('#vi-results').appendChild(resultEl);
+
+                    numItems++;
+                    i++;
+                }
+
+                renderHandle = setTimeout(() => renderIncremental(results, i), 0);
+            } else {
+                rendering = false;
+            }
+        }
+
+        document.querySelector('#vn-query').addEventListener('input', e => {
+            const [results, summary] = runSearch(e.target.value);
+            renderNaive(results);
+        });
+        document.querySelector('#vn2-query').addEventListener('input', e => {
+            const [results, summary] = runSearch(e.target.value);
+            renderNaive2(results);
+        });
+        document.querySelector('#vi-query').addEventListener('input', e => {
+            const [results, summary] = runSearch(e.target.value);
+            renderIncremental(results);
+        });
+    </script>
+
+    <!-- React (Naive) -->
+    <script>
+        function ReactNaive() {
+            const [query, setQuery] = React.useState('');
+
+            function handleChange(e) {
+                setQuery(e.target.value);
+            }
+            
+            const [results, summary] = runSearch(query);
+
+            return e(React.Fragment, {},
+                e('input', {value: query, onChange: handleChange}),
+                e('div', {}, results.map(r => (
+                    e('div', {key: r.episode.day},
+                        e('h4', {}, r.episode.title),
+                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                    )
+                ))),
+            );
+        }
+        ReactDOM.render(e(ReactNaive), document.querySelector('#rn-container'));
+
+        function ReactNoDiffing() {
+            /*
+            According to https://reactjs.org/docs/reconciliation.html, React assumes that switching the
+            type of an element (e.g. from div to span) will always result in different trees, thus
+            providing a fast path out for the diffing algorithm. So by swapping element types on every
+            render, we should effectively skip all diffing, at the cost of not preserving component state.
+            */
+
+            const [query, setQuery] = React.useState('');
+            const [typeToggle, setTypeToggle] = React.useState(false);
+
+            function handleChange(e) {
+                setQuery(e.target.value);
+                setTypeToggle(!typeToggle);
+            }
+
+            const [results, summary] = runSearch(query);
+
+            const ContainerA = props => e('div', {}, props.children);
+            const ContainerB = props => e('div', {}, props.children);
+
+            return e(React.Fragment, {},
+                e('input', {value: query, onChange: handleChange}),
+                e(typeToggle ? ContainerA : ContainerB, {}, results.map(r => (
+                    e('div', {key: r.episode.day},
+                        e('h4', {}, r.episode.title),
+                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                    )
+                ))),
+            );
+        }
+        ReactDOM.render(e(ReactNoDiffing), document.querySelector('#rd-container'));
+
+        function ReactNaiveIncremental() {
+            const [query, setQuery] = React.useState('');
+            const [results, setResults] = React.useState([]);
+            const [maxIndex, setMaxIndex] = React.useState(0);
+
+            const renderHandle = React.useRef(null);
+
+            function handleChange(e) {
+                setQuery(e.target.value);
+                setMaxIndex(MAX_INCREMENTAL);
+            }
+
+            React.useEffect(() => {
+                clearTimeout(renderHandle.current);
+
+                const [newResults, newSummary] = runSearch(query);
+                setResults(newResults);
+            }, [query]);
+
+            React.useEffect(() => {
+                if (maxIndex < results.length) {
+                    const handle = setTimeout(() => setMaxIndex(maxIndex + MAX_INCREMENTAL), 0);
+                    renderHandle.current = handle;
+                }
+            });
+
+            const resultSlice = results.slice(0, Math.min(maxIndex, results.length));
+
+            return e(React.Fragment, {},
+                e('input', {value: query, onChange: handleChange}),
+                e('div', {}, resultSlice.map(r => (
+                    e('div', {key: r.episode.day},
+                        e('h4', {}, r.episode.title),
+                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                    )
+                ))),
+            );
+        }
+        ReactDOM.render(e(ReactNaiveIncremental), document.querySelector('#rni-container'));
+
+        function ReactIncremental() {
+            /*
+            Let's cheat React's rendering by using portals. Portals are a feature of React where you can
+            tell it to render into an arbitrary DOM element. We can use this, combined with refs to give
+            us access to the underlying DOM nodes, to make React render into a bunch of unattached DOM
+            elements, which we then incrementally add to the document.
+            */
+
+            const [query, setQuery] = React.useState('');
+
+            /*
+            These are all refs because we need persistent but mutable values that won't trigger updates
+            when we change them.
+            */
+            const container = React.useRef(null);
+            const renderHandle = React.useRef(null);
+            const renderDivs = React.useRef([]);
+
+            function handleChange(e) {
+                setQuery(e.target.value);
+            }
+
+            React.useEffect(() => {
+                clearTimeout(renderHandle.current);
+                container.current.innerHTML = '';
+
+                function renderIncremental(divs, i = 0) {
+                    let numItems = 0;
+
+                    if (i < results.length) {
+                        while (numItems < MAX_INCREMENTAL && i < divs.length) {
+                            container.current.appendChild(divs[i]);
+                            numItems++;
+                            i++;
+                        }
+
+                        const handle = setTimeout(() => renderIncremental(divs, i), 0);
+                        renderHandle.current = handle;
+                    }
+                }
+
+                renderIncremental(renderDivs.current, 0);
+
+                // Cleanup function in case the thing unmounts
+                return () => {
+                    clearTimeout(renderHandle.current);
+                }
+            }, [query]);
+
+            const [results, summary] = runSearch(query);
+            const divs = new Array(results.length);
+            const portals = new Array(results.length);
+            for (let i = 0; i < results.length; i++) {
+                const r = results[i];
+
+                const div = document.createElement('div');
+                divs[i] = div;
+                portals[i] = ReactDOM.createPortal(
+                    e(React.Fragment, {},
+                        e('h4', {}, r.episode.title),
+                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                    ),
+                    div,
+                );
+            }
+
+            renderDivs.current = divs;
+
+            return e(React.Fragment, {},
+                e('input', {value: query, onChange: handleChange}),
+                e('div', {ref: container}, portals),
+            );
+        }
+        ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
+    </script>
+</body>
+
+</html>
