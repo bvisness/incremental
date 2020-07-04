@@ -1,0 +1,50 @@
+Completion timings
+
+Vanilla (Naive):
+a: 2131
+ab: 573
+abo: 215
+abou: 195
+about: 187
+
+Vanilla (Naive 2):
+a: 1865
+ab: 432
+abo: 135
+abou: 118
+about: 115
+
+Vanilla (Incremental):
+a: 2177
+ab: 631
+abo: 242
+abou: 206
+about: 214
+
+React (Naive):
+a: 2453
+ab: 703
+abo: 117
+abou: 59
+about: 33
+
+React (Naive, Faster Diffing):
+a: 2335
+ab: 536
+abo: 169
+abou: 137
+about: 133
+
+React (Naive Incremental):
+a: 4613
+ab: 1270
+abo: 449
+abou: 332
+about: 317
+
+React (Incremental Portals):
+a: 2859
+ab: 1356
+abo: 493
+abou: 396
+about: 365
