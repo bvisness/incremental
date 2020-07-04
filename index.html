@@ -5,18 +5,50 @@
     <meta charset="utf-8">
     <title>Incremental Rendering Tests</title>
 
-    <link rel="stylesheet" href="/tachyons.min.css">
+    <link rel="stylesheet" href="/normalize.css">
     <style>
-        .fb-0 {
-            flex-basis: 0;
+        * {
+            box-sizing: border-box;
         }
 
-        .fg-1 {
+        body {
+            font-family: -apple-system,BlinkMacSystemFont,segoe ui,Helvetica,Arial,sans-serif,apple color emoji,segoe ui emoji,segoe ui symbol;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+        }
+
+        .description {
+            padding: 0.8rem;
+        }
+
+        .cases {
+            display: flex;
             flex-grow: 1;
+            overflow-x: auto;
+            border-top: 1px solid #ccc;
         }
 
-        .fs-1 {
-            flex-shrink: 1;
+        .cases > div {
+            width: 20rem;
+            flex-shrink: 0;
+            padding: 0 0.8rem 0.8rem;
+            overflow-y: auto;
+        }
+
+        .cases > div:not(:last-child) {
+            border-right: 1px solid #ccc;
+        }
+
+        input {
+            width: 100%;
         }
 
         h4 {
@@ -38,54 +70,64 @@
 </head>
 
 <body>
-    <div class="flex">
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>Vanilla (Naive)</h2>
-            <div id="vn-container">
-                <input id="vn-query">
-                <div id="vn-results"></div>
+    <div class="main">
+        <div class="description">
+            An experiment to see if anything I do with React can match the performance of the search on the <a href="https://hero.handmade.network/episode/code">Handmade Hero episode guide</a>. View the source code for details on each algorithm.
+        </div>
+        <div class="cases">
+            <div>
+                <h2>Vanilla (Naive)</h2>
+                <div id="vn-container">
+                    <input id="vn-query">
+                    <div id="vn-results"></div>
+                </div>
             </div>
-        </div>
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>Vanilla (Naive 2)</h2>
-            <div id="vn2-container">
-                <input id="vn2-query">
-                <div id="vn2-results"></div>
+            <div>
+                <h2>Vanilla (Naive 2)</h2>
+                <div id="vn2-container">
+                    <input id="vn2-query">
+                    <div id="vn2-results"></div>
+                </div>
             </div>
-        </div>
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>Vanilla (Incremental)</h2>
-            <div id="vi-container">
-                <input id="vi-query">
-                <div id="vi-results"></div>
+            <div>
+                <h2>Vanilla (Incremental)</h2>
+                <div id="vi-container">
+                    <input id="vi-query">
+                    <div id="vi-results"></div>
+                </div>
             </div>
-        </div>
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>React (Naive)</h2>
-            <div id="rn-container"></div>
-        </div>
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>React (Naive, Faster Diffing)</h2>
-            <div id="rd-container"></div>
-        </div>
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>React (Naive Incremental)</h2>
-            <div id="rni-container"></div>
-        </div>
-        <div class="fb-0 fs-1 fg-1 ph2">
-            <h2>React (Incremental Portals)</h2>
-            <div id="ri-container"></div>
+            <div>
+                <h2>React (Naive)</h2>
+                <div id="rn-container"></div>
+            </div>
+            <div>
+                <h2>React (Naive, Faster Diffing)</h2>
+                <div id="rd-container"></div>
+            </div>
+            <div>
+                <h2>React (Naive Incremental)</h2>
+                <div id="rni-container"></div>
+            </div>
+            <div>
+                <h2>React (Incremental Portals)</h2>
+                <div id="ri-container"></div>
+            </div>
         </div>
     </div>
 
     <script src="/project.js"></script>
 
-    <!-- Vanilla (Incremental) -->
     <script>
         var project = getProject();
 
         var renderHandle;
 
+        /*
+        Searches the episode information and returns all the results.
+        Used by all test cases.
+        
+        Adapted from the original: https://handmade.network/static/annotations/cinera_search.js
+        */
         function runSearch(queryStr) {
             var numEpisodes = 0;
             var numMarkers = 0;
@@ -133,6 +175,9 @@
             return [results, "Found: " + numEpisodes + " episodes, " + numMarkers + " markers, " + totalTime + "total."];
         }
 
+        /*
+        Renders results as straightforwardly as possible.
+        */
         function renderNaive(results) {
             document.querySelector('#vn-results').innerHTML = '';
 
@@ -148,6 +193,11 @@
             }
         }
 
+        /*
+        Renders results as straightforwardly as possible, but more directly
+        manipulating the DOM instead of relying on innerHTML, to
+        improve performance.
+        */
         function renderNaive2(results) {
             // Now with less HTML parsing.
 
@@ -170,6 +220,10 @@
             }
         }
 
+        /*
+        Renders results incrementally, processing and adding a chunk of
+        items to the DOM at a time.
+        */
         function renderIncremental(results, i = 0) {
             var numItems = 0;
 
@@ -217,10 +271,10 @@
             const [results, summary] = runSearch(e.target.value);
             renderIncremental(results);
         });
-    </script>
 
-    <!-- React (Naive) -->
-    <script>
+        /*
+        Renders items using React as straightforwardly as possible.
+        */
         function ReactNaive() {
             const [query, setQuery] = React.useState('');
 
@@ -242,12 +296,17 @@
         }
         ReactDOM.render(e(ReactNaive), document.querySelector('#rn-container'));
 
+        /*
+        Renders all items at once, but does a trick to reduce diffing times.
+        */
         function ReactNoDiffing() {
             /*
-            According to https://reactjs.org/docs/reconciliation.html, React assumes that switching the
-            type of an element (e.g. from div to span) will always result in different trees, thus
-            providing a fast path out for the diffing algorithm. So by swapping element types on every
-            render, we should effectively skip all diffing, at the cost of not preserving component state.
+            According to https://reactjs.org/docs/reconciliation.html, React
+            assumes that switching the type of an element (e.g. from div to
+            span) will always result in different trees, thus providing a
+            fast path out for the diffing algorithm. So by swapping element
+            types on every render, we should effectively skip all diffing, at
+            the cost of not preserving component state.
             */
 
             const [query, setQuery] = React.useState('');
@@ -275,6 +334,9 @@
         }
         ReactDOM.render(e(ReactNoDiffing), document.querySelector('#rd-container'));
 
+        /*
+        Renders items incrementally using React.
+        */
         function ReactNaiveIncremental() {
             const [query, setQuery] = React.useState('');
             const [results, setResults] = React.useState([]);
@@ -315,12 +377,19 @@
         }
         ReactDOM.render(e(ReactNaiveIncremental), document.querySelector('#rni-container'));
 
+        /*
+        Attempts to reduce the cost of DOM manipulation by making React render
+        into detached DOM elements, which are added to the DOM outside of
+        React's control. The React logic itself is not incremental.
+        */
         function ReactIncremental() {
             /*
-            Let's cheat React's rendering by using portals. Portals are a feature of React where you can
-            tell it to render into an arbitrary DOM element. We can use this, combined with refs to give
-            us access to the underlying DOM nodes, to make React render into a bunch of unattached DOM
-            elements, which we then incrementally add to the document.
+            Let's cheat React's rendering by using portals. Portals are a
+            feature of React where you can tell it to render into an
+            arbitrary DOM element. We can use this, combined with refs to give
+            us access to the underlying DOM nodes, to make React render into
+            a bunch of detached DOM elements, which we then incrementally
+            add to the document.
             */
 
             const [query, setQuery] = React.useState('');
