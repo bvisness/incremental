@@ -37,7 +37,7 @@
         }
 
         .cases > div {
-            width: 20rem;
+            width: 22rem;
             flex-shrink: 0;
             padding: 0 0.8rem 0.8rem;
             overflow-y: auto;
@@ -58,6 +58,12 @@
         p {
             margin: 0.4em 0;
         }
+
+        .highlight {
+            background-color: yellow;
+            border: 1px solid #999;
+            border-radius: 3px;
+        }
     </style>
 
     <script src="react.development.js"></script>
@@ -65,7 +71,7 @@
     <script>
         const e = React.createElement;
 
-        const MAX_INCREMENTAL = 50;
+        const MAX_INCREMENTAL = 20;
     </script>
 </head>
 
@@ -83,13 +89,6 @@
                 </div>
             </div>
             <div>
-                <h2>Vanilla (Naive 2)</h2>
-                <div id="vn2-container">
-                    <input id="vn2-query">
-                    <div id="vn2-results"></div>
-                </div>
-            </div>
-            <div>
                 <h2>Vanilla (Incremental)</h2>
                 <div id="vi-container">
                     <input id="vi-query">
@@ -102,15 +101,19 @@
             </div>
             <div>
                 <h2>React (Naive, Faster Diffing)</h2>
-                <div id="rd-container"></div>
+                <div id="rnf-container"></div>
             </div>
             <div>
-                <h2>React (Naive Incremental)</h2>
-                <div id="rni-container"></div>
-            </div>
-            <div>
-                <h2>React (Incremental Portals)</h2>
+                <h2>React (Incremental)</h2>
                 <div id="ri-container"></div>
+            </div>
+            <div>
+                <h2>React (Incremental, Faster Diffing)</h2>
+                <div id="rif-container"></div>
+            </div>
+            <div>
+                <h2>React (Naive, Incremental Portals)</h2>
+                <div id="rip-container"></div>
             </div>
         </div>
     </div>
@@ -160,7 +163,7 @@
 
             var results = [];
             if (queryStr && queryStr.length > 0) {
-                var query = new RegExp(queryStr.replace("(", "\\(").replace(")", "\\)").replace(/\|+/, "\|").replace(/\|$/, "").replace(/(^|[^\\])\\$/, "$1"), "gi");
+                var query = new RegExp(queryStr.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&'), 'gi');
 
                 if(project.parsed && !project.filteredOut && project.episodes.length > 0) {
                     for(var j = 0; j < project.episodes.length; ++j) {
@@ -175,6 +178,40 @@
             return [results, "Found: " + numEpisodes + " episodes, " + numMarkers + " markers, " + totalTime + "total."];
         }
 
+        function renderResultVanilla(r) {
+            const resultEl = document.createElement('div');
+
+            const header = document.createElement('h4');
+            header.innerText = r.episode.title;
+            resultEl.appendChild(header);
+
+            for (const m of r.matches) {
+                const p = document.createElement('p');
+
+                p.appendChild(document.createTextNode(`${m.prettyTime} `));
+
+                let startIndex = 0;
+                for (const highlightMatch of m.text.matchAll(r.query)) {
+                    const text = m.text.slice(startIndex, highlightMatch.index);
+                    p.appendChild(document.createTextNode(text));
+
+                    const span = document.createElement('span');
+                    span.classList.add('highlight');
+                    span.innerText = highlightMatch[0];
+                    p.appendChild(span);
+
+                    startIndex = highlightMatch.index + highlightMatch[0].length;
+                }
+
+                const remainingText = m.text.slice(startIndex);
+                p.appendChild(document.createTextNode(remainingText));
+
+                resultEl.appendChild(p);
+            }
+
+            return resultEl;
+        }
+
         /*
         Renders results as straightforwardly as possible.
         */
@@ -182,41 +219,7 @@
             document.querySelector('#vn-results').innerHTML = '';
 
             for (const r of results) {
-                const resultEl = document.createElement('div');
-                resultEl.innerHTML = `
-                    <h4>${r.episode.title}</h4>
-                    ${
-                        r.matches.map(m => `<p>${m.prettyTime} ${m.text}</p>`).join('')
-                    }
-                `;
-                document.querySelector('#vn-results').appendChild(resultEl);
-            }
-        }
-
-        /*
-        Renders results as straightforwardly as possible, but more directly
-        manipulating the DOM instead of relying on innerHTML, to
-        improve performance.
-        */
-        function renderNaive2(results) {
-            // Now with less HTML parsing.
-
-            document.querySelector('#vn2-results').innerHTML = '';
-
-            for (const r of results) {
-                const resultEl = document.createElement('div');
-
-                const header = document.createElement('h4');
-                header.innerText = r.episode.title;
-                resultEl.appendChild(header);
-
-                for (const m of r.matches) {
-                    const p = document.createElement('p');
-                    p.innerText = `${m.prettyTime} ${m.text}`;
-                    resultEl.appendChild(p);
-                }
-
-                document.querySelector('#vn2-results').appendChild(resultEl);
+                document.querySelector('#vn-results').appendChild(renderResultVanilla(r));
             }
         }
 
@@ -236,18 +239,7 @@
                 rendering = true;
 
                 while (numItems < MAX_INCREMENTAL && i < results.length) {
-                    var query = results[i].query;
-                    var episode = results[i].episode;
-                    var matches = results[i].matches;
-
-                    const resultEl = document.createElement('div');
-                    resultEl.innerHTML = `
-                        <h4>${episode.title}</h4>
-                        ${
-                            matches.map(m => `<p>${m.prettyTime} ${m.text}</p>`).join('')
-                        }
-                    `;
-                    document.querySelector('#vi-results').appendChild(resultEl);
+                    document.querySelector('#vi-results').appendChild(renderResultVanilla(results[i]));
 
                     numItems++;
                     i++;
@@ -263,14 +255,44 @@
             const [results, summary] = runSearch(e.target.value);
             renderNaive(results);
         });
-        document.querySelector('#vn2-query').addEventListener('input', e => {
-            const [results, summary] = runSearch(e.target.value);
-            renderNaive2(results);
-        });
         document.querySelector('#vi-query').addEventListener('input', e => {
             const [results, summary] = runSearch(e.target.value);
             renderIncremental(results);
         });
+
+        /*
+        A React component that renders a result and all its matches.
+        */
+        function SearchResult({ result }) {
+            return e(React.Fragment, {},
+                e('h4', {}, result.episode.title),
+                result.matches.map(m => (
+                    e(SearchResultMatch, {key: m.prettyTime, result: result, match: m})
+                )),
+            );
+        }
+
+        /*
+        A React component that renders a specific matching annotation,
+        with highlights.
+        */
+        function SearchResultMatch({ result, match }) {
+            const children = [];
+
+            children.push(`${match.prettyTime} `);
+
+            let startIndex = 0;
+            for (const highlightMatch of match.text.matchAll(result.query)) {
+                children.push(match.text.slice(startIndex, highlightMatch.index));
+                children.push(e('span', {className: 'highlight'}, highlightMatch[0]));
+
+                startIndex = highlightMatch.index + highlightMatch[0].length;
+            }
+
+            children.push(match.text.slice(startIndex));
+
+            return e('p', {}, ...children);
+        }
 
         /*
         Renders items using React as straightforwardly as possible.
@@ -288,8 +310,7 @@
                 e('input', {value: query, onChange: handleChange}),
                 e('div', {}, results.map(r => (
                     e('div', {key: r.episode.day},
-                        e('h4', {}, r.episode.title),
-                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                        e(SearchResult, {result: r}),
                     )
                 ))),
             );
@@ -299,7 +320,7 @@
         /*
         Renders all items at once, but does a trick to reduce diffing times.
         */
-        function ReactNoDiffing() {
+        function ReactNaiveFastDiffing() {
             /*
             According to https://reactjs.org/docs/reconciliation.html, React
             assumes that switching the type of an element (e.g. from div to
@@ -326,18 +347,17 @@
                 e('input', {value: query, onChange: handleChange}),
                 e(typeToggle ? ContainerA : ContainerB, {}, results.map(r => (
                     e('div', {key: r.episode.day},
-                        e('h4', {}, r.episode.title),
-                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                        e(SearchResult, { result: r }),
                     )
                 ))),
             );
         }
-        ReactDOM.render(e(ReactNoDiffing), document.querySelector('#rd-container'));
+        ReactDOM.render(e(ReactNaiveFastDiffing), document.querySelector('#rnf-container'));
 
         /*
         Renders items incrementally using React.
         */
-        function ReactNaiveIncremental() {
+        function ReactIncremental() {
             const [query, setQuery] = React.useState('');
             const [results, setResults] = React.useState([]);
             const [maxIndex, setMaxIndex] = React.useState(0);
@@ -369,20 +389,67 @@
                 e('input', {value: query, onChange: handleChange}),
                 e('div', {}, resultSlice.map(r => (
                     e('div', {key: r.episode.day},
-                        e('h4', {}, r.episode.title),
-                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
+                        e(SearchResult, {result: r}),
                     )
                 ))),
             );
         }
-        ReactDOM.render(e(ReactNaiveIncremental), document.querySelector('#rni-container'));
+        ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
+
+        /*
+        Renders items incrementally using React, with the trick from
+        before to reduce diffing times.
+        */
+        function ReactIncrementalFastDiffing() {
+            const [query, setQuery] = React.useState('');
+            const [typeToggle, setTypeToggle] = React.useState(false);
+            const [results, setResults] = React.useState([]);
+            const [maxIndex, setMaxIndex] = React.useState(0);
+
+            const renderHandle = React.useRef(null);
+
+            function handleChange(e) {
+                setQuery(e.target.value);
+                setMaxIndex(MAX_INCREMENTAL);
+                setTypeToggle(!typeToggle);
+            }
+
+            React.useEffect(() => {
+                clearTimeout(renderHandle.current);
+
+                const [newResults, newSummary] = runSearch(query);
+                setResults(newResults);
+            }, [query]);
+
+            React.useEffect(() => {
+                if (maxIndex < results.length) {
+                    const handle = setTimeout(() => setMaxIndex(maxIndex + MAX_INCREMENTAL), 0);
+                    renderHandle.current = handle;
+                }
+            });
+
+            const resultSlice = results.slice(0, Math.min(maxIndex, results.length));
+
+            const ContainerA = props => e('div', {}, props.children);
+            const ContainerB = props => e('div', {}, props.children);
+
+            return e(React.Fragment, {},
+                e('input', {value: query, onChange: handleChange}),
+                e(typeToggle ? ContainerA : ContainerB, {}, resultSlice.map(r => (
+                    e('div', {key: r.episode.day},
+                        e(SearchResult, {result: r}),
+                    )
+                ))),
+            );
+        }
+        ReactDOM.render(e(ReactIncrementalFastDiffing), document.querySelector('#rif-container'));
 
         /*
         Attempts to reduce the cost of DOM manipulation by making React render
         into detached DOM elements, which are added to the DOM outside of
         React's control. The React logic itself is not incremental.
         */
-        function ReactIncremental() {
+        function ReactIncrementalPortals() {
             /*
             Let's cheat React's rendering by using portals. Portals are a
             feature of React where you can tell it to render into an
@@ -442,10 +509,7 @@
                 const div = document.createElement('div');
                 divs[i] = div;
                 portals[i] = ReactDOM.createPortal(
-                    e(React.Fragment, {},
-                        e('h4', {}, r.episode.title),
-                        r.matches.map(m => e('p', {key: m.prettyTime}, `${m.prettyTime} ${m.text}`)),
-                    ),
+                    e(SearchResult, {result: r}),
                     div,
                 );
             }
@@ -457,7 +521,7 @@
                 e('div', {ref: container}, portals),
             );
         }
-        ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
+        ReactDOM.render(e(ReactIncrementalPortals), document.querySelector('#rip-container'));
     </script>
 </body>
 
