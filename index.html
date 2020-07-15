@@ -66,12 +66,12 @@
         }
     </style>
 
-    <script src="react.development.js"></script>
-    <script src="react-dom.development.js"></script>
+    <script src="react.production.min.js"></script>
+    <script src="react-dom.production.min.js"></script>
     <script>
         const e = React.createElement;
 
-        const MAX_INCREMENTAL = 20;
+        const MAX_INCREMENTAL = 10;
     </script>
 </head>
 
@@ -100,12 +100,20 @@
                 <div id="rn-container"></div>
             </div>
             <div>
+                <h2>React (Naive, Concurrent Mode)</h2>
+                <div id="rn-c-container"></div>
+            </div>
+            <div>
                 <h2>React (Naive, Faster Diffing)</h2>
                 <div id="rnf-container"></div>
             </div>
             <div>
                 <h2>React (Incremental)</h2>
                 <div id="ri-container"></div>
+            </div>
+            <div>
+                <h2>React (Incremental, Concurrent Mode)</h2>
+                <div id="ri-c-container"></div>
             </div>
             <div>
                 <h2>React (Incremental, Faster Diffing)</h2>
@@ -319,6 +327,7 @@
             );
         }
         ReactDOM.render(e(ReactNaive), document.querySelector('#rn-container'));
+        ReactDOM.createRoot(document.querySelector('#rn-c-container')).render(e(ReactNaive));
 
         /*
         Renders all items at once, but does a trick to reduce diffing times.
@@ -398,6 +407,7 @@
             );
         }
         ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
+        ReactDOM.createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
 
         /*
         Renders items incrementally using React, with the trick from
