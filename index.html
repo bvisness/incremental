@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <title>Incremental Rendering Tests</title>
 
-    <link rel="stylesheet" href="/normalize.css">
+    <link rel="stylesheet" href="normalize.css">
     <style>
         * {
             box-sizing: border-box;
@@ -66,9 +66,20 @@
         }
     </style>
 
+    <!-- Production libs -->
+    <!--
     <script src="react.production.min.js"></script>
     <script src="react-dom.production.min.js"></script>
     <script src="vue.global.prod.js"></script>
+    -->
+
+    <!-- Development libs -->
+
+    <script src="react.development.js"></script>
+    <script src="react-dom.development.js"></script>
+    <script src="vue.global.js"></script>
+
+
     <script>
         const e = React.createElement;
 
@@ -338,7 +349,7 @@
             );
         }
         ReactDOM.render(e(ReactNaive), document.querySelector('#rn-container'));
-        ReactDOM.createRoot(document.querySelector('#rn-c-container')).render(e(ReactNaive));
+        ReactDOM.unstable_createRoot(document.querySelector('#rn-c-container')).render(e(ReactNaive));
 
         /*
         Renders items incrementally using React.
@@ -381,7 +392,7 @@
             );
         }
         ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
-        ReactDOM.createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
+        ReactDOM.unstable_createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
 
         {
             const app = Vue.createApp({
@@ -407,28 +418,32 @@
             app.component('search-result-match', {
                 props: ['result', 'match'],
                 computed: {
-                    rawHtml() {
+                    pieces() {
                         const { result, match } = this;
-
-                        let html = `${match.prettyTime} `;
+                        const pieces = [];
 
                         let startIndex = 0;
                         for (const highlightMatch of match.text.matchAll(result.query)) {
-                            html += match.text.slice(startIndex, highlightMatch.index);
-                            html += `<span class="highlight">${highlightMatch[0]}</span>`;
+                            pieces.push(match.text.slice(startIndex, highlightMatch.index));
+                            pieces.push(highlightMatch[0]);
 
                             startIndex = highlightMatch.index + highlightMatch[0].length;
                         }
+                        pieces.push(match.text.slice(startIndex));
 
-                        html += match.text.slice(startIndex);
-
-                        return html;
+                        return pieces;
                     },
                 },
                 template: `
-                    <p v-html="rawHtml"></p>
+                    <p>
+                        {{ match.prettyTime }}
+                        <template v-for="(piece, i) in pieces">
+                            <template v-if="i % 2 === 0">{{ piece }}</template>
+                            <span v-else class="highlight">{{ piece }}</span>
+                        </template>
+                    </p>
                 `
-            })
+            });
             app.mount('#vue-n-container');
         }
 
@@ -475,28 +490,32 @@
             app.component('search-result-match', {
                 props: ['result', 'match'],
                 computed: {
-                    rawHtml() {
+                    pieces() {
                         const { result, match } = this;
-
-                        let html = `${match.prettyTime} `;
+                        const pieces = [];
 
                         let startIndex = 0;
                         for (const highlightMatch of match.text.matchAll(result.query)) {
-                            html += match.text.slice(startIndex, highlightMatch.index);
-                            html += `<span class="highlight">${highlightMatch[0]}</span>`;
+                            pieces.push(match.text.slice(startIndex, highlightMatch.index));
+                            pieces.push(highlightMatch[0]);
 
                             startIndex = highlightMatch.index + highlightMatch[0].length;
                         }
+                        pieces.push(match.text.slice(startIndex));
 
-                        html += match.text.slice(startIndex);
-
-                        return html;
+                        return pieces;
                     },
                 },
                 template: `
-                    <p v-html="rawHtml"></p>
+                    <p>
+                        {{ match.prettyTime }}
+                        <template v-for="(piece, i) in pieces">
+                            <template v-if="i % 2 === 0">{{ piece }}</template>
+                            <span v-else class="highlight">{{ piece }}</span>
+                        </template>
+                    </p>
                 `
-            })
+            });
             app.mount('#vue-i-container');
         }
     </script>

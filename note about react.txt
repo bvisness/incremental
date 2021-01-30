@@ -1,0 +1,1 @@
+As of right now concurrent mode is only available in experimental builds (not on CDNs or in public releases), and since I'm allergic to NPM, I built the React versions here from source.
