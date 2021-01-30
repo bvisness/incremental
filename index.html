@@ -123,6 +123,17 @@
                     </div>
                 </div>
             </div>
+            <div>
+                <h2>Vue (Incremental)</h2>
+                <div id="vue-i-container">
+                    <input v-model="query">
+                    <div>
+                        <div v-for="r in resultSlice" :key="r.episode.day">
+                            <search-result :result="r" />
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -419,6 +430,74 @@
                 `
             })
             app.mount('#vue-n-container');
+        }
+
+        {
+            const app = Vue.createApp({
+                data() {
+                    return {
+                        query: '',
+                        results: [],
+                        maxIndex: 0,
+
+                        renderHandle: null,
+                    };
+                },
+                watch: {
+                    query(query) {
+                        clearTimeout(this.renderHandle);
+
+                        const [newResults, newSummary] = runSearch(query);
+                        this.results = newResults;
+                    },
+                },
+                updated() {
+                    if (this.maxIndex < this.results.length) {
+                        const handle = setTimeout(() => {
+                            this.maxIndex += MAX_INCREMENTAL;
+                        }, 0);
+                        this.renderHandle = handle;
+                    }
+                },
+                computed: {
+                    resultSlice() {
+                        return this.results.slice(0, Math.min(this.maxIndex, this.results.length));
+                    },
+                },
+            });
+            app.component('search-result', {
+                props: ['result'],
+                template: `
+                    <h4>{{ result.episode.title }}</h4>
+                    <search-result-match v-for="m in result.matches" :key="m.prettyTime" :result="result" :match="m" />
+                `
+            });
+            app.component('search-result-match', {
+                props: ['result', 'match'],
+                computed: {
+                    rawHtml() {
+                        const { result, match } = this;
+
+                        let html = `${match.prettyTime} `;
+
+                        let startIndex = 0;
+                        for (const highlightMatch of match.text.matchAll(result.query)) {
+                            html += match.text.slice(startIndex, highlightMatch.index);
+                            html += `<span class="highlight">${highlightMatch[0]}</span>`;
+
+                            startIndex = highlightMatch.index + highlightMatch[0].length;
+                        }
+
+                        html += match.text.slice(startIndex);
+
+                        return html;
+                    },
+                },
+                template: `
+                    <p v-html="rawHtml"></p>
+                `
+            })
+            app.mount('#vue-i-container');
         }
     </script>
 </body>
