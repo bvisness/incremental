@@ -68,6 +68,7 @@
 
     <script src="react.production.min.js"></script>
     <script src="react-dom.production.min.js"></script>
+    <script src="vue.global.js"></script>
     <script>
         const e = React.createElement;
 
@@ -104,10 +105,6 @@
                 <div id="rn-c-container"></div>
             </div>
             <div>
-                <h2>React (Naive, Faster Diffing)</h2>
-                <div id="rnf-container"></div>
-            </div>
-            <div>
                 <h2>React (Incremental)</h2>
                 <div id="ri-container"></div>
             </div>
@@ -116,12 +113,15 @@
                 <div id="ri-c-container"></div>
             </div>
             <div>
-                <h2>React (Incremental, Faster Diffing)</h2>
-                <div id="rif-container"></div>
-            </div>
-            <div>
-                <h2>React (Naive, Incremental Portals)</h2>
-                <div id="rip-container"></div>
+                <h2>Vue (Naive)</h2>
+                <div id="vue-n-container">
+                    <input v-model="query">
+                    <div>
+                        <div v-for="r in results" :key="r.episode.day">
+                            <search-result :result="r" />
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -136,7 +136,7 @@
         /*
         Searches the episode information and returns all the results.
         Used by all test cases.
-        
+
         Adapted from the original: https://handmade.network/static/annotations/cinera_search.js
         */
         function runSearch(queryStr) {
@@ -314,7 +314,7 @@
             function handleChange(e) {
                 setQuery(e.target.value);
             }
-            
+
             const [results, summary] = runSearch(query);
 
             return e(React.Fragment, {},
@@ -328,43 +328,6 @@
         }
         ReactDOM.render(e(ReactNaive), document.querySelector('#rn-container'));
         ReactDOM.createRoot(document.querySelector('#rn-c-container')).render(e(ReactNaive));
-
-        /*
-        Renders all items at once, but does a trick to reduce diffing times.
-        */
-        function ReactNaiveFastDiffing() {
-            /*
-            According to https://reactjs.org/docs/reconciliation.html, React
-            assumes that switching the type of an element (e.g. from div to
-            span) will always result in different trees, thus providing a
-            fast path out for the diffing algorithm. So by swapping element
-            types on every render, we should effectively skip all diffing, at
-            the cost of not preserving component state.
-            */
-
-            const [query, setQuery] = React.useState('');
-            const [typeToggle, setTypeToggle] = React.useState(false);
-
-            function handleChange(e) {
-                setQuery(e.target.value);
-                setTypeToggle(!typeToggle);
-            }
-
-            const [results, summary] = runSearch(query);
-
-            const ContainerA = props => e('div', {}, props.children);
-            const ContainerB = props => e('div', {}, props.children);
-
-            return e(React.Fragment, {},
-                e('input', {value: query, onChange: handleChange}),
-                e(typeToggle ? ContainerA : ContainerB, {}, results.map(r => (
-                    e('div', {key: r.episode.day},
-                        e(SearchResult, { result: r }),
-                    )
-                ))),
-            );
-        }
-        ReactDOM.render(e(ReactNaiveFastDiffing), document.querySelector('#rnf-container'));
 
         /*
         Renders items incrementally using React.
@@ -409,132 +372,54 @@
         ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
         ReactDOM.createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
 
-        /*
-        Renders items incrementally using React, with the trick from
-        before to reduce diffing times.
-        */
-        function ReactIncrementalFastDiffing() {
-            const [query, setQuery] = React.useState('');
-            const [typeToggle, setTypeToggle] = React.useState(false);
-            const [results, setResults] = React.useState([]);
-            const [maxIndex, setMaxIndex] = React.useState(0);
-
-            const renderHandle = React.useRef(null);
-
-            function handleChange(e) {
-                setQuery(e.target.value);
-                setMaxIndex(MAX_INCREMENTAL);
-                setTypeToggle(!typeToggle);
-            }
-
-            React.useEffect(() => {
-                clearTimeout(renderHandle.current);
-
-                const [newResults, newSummary] = runSearch(query);
-                setResults(newResults);
-            }, [query]);
-
-            React.useEffect(() => {
-                if (maxIndex < results.length) {
-                    const handle = setTimeout(() => setMaxIndex(maxIndex + MAX_INCREMENTAL), 0);
-                    renderHandle.current = handle;
-                }
+        {
+            const app = Vue.createApp({
+                data() {
+                    return {
+                        query: '',
+                    };
+                },
+                computed: {
+                    results() {
+                        const [results, summary] = runSearch(this.query);
+                        return results;
+                    },
+                },
             });
+            app.component('search-result', {
+                props: ['result'],
+                template: `
+                    <h4>{{ result.episode.title }}</h4>
+                    <search-result-match v-for="m in result.matches" :key="m.prettyTime" :result="result" :match="m" />
+                `
+            });
+            app.component('search-result-match', {
+                props: ['result', 'match'],
+                computed: {
+                    rawHtml() {
+                        const { result, match } = this;
 
-            const resultSlice = results.slice(0, Math.min(maxIndex, results.length));
+                        let html = `${match.prettyTime} `;
 
-            const ContainerA = props => e('div', {}, props.children);
-            const ContainerB = props => e('div', {}, props.children);
+                        let startIndex = 0;
+                        for (const highlightMatch of match.text.matchAll(result.query)) {
+                            html += match.text.slice(startIndex, highlightMatch.index);
+                            html += `<span class="highlight">${highlightMatch[0]}</span>`;
 
-            return e(React.Fragment, {},
-                e('input', {value: query, onChange: handleChange}),
-                e(typeToggle ? ContainerA : ContainerB, {}, resultSlice.map(r => (
-                    e('div', {key: r.episode.day},
-                        e(SearchResult, {result: r}),
-                    )
-                ))),
-            );
-        }
-        ReactDOM.render(e(ReactIncrementalFastDiffing), document.querySelector('#rif-container'));
-
-        /*
-        Attempts to reduce the cost of DOM manipulation by making React render
-        into detached DOM elements, which are added to the DOM outside of
-        React's control. The React logic itself is not incremental.
-        */
-        function ReactIncrementalPortals() {
-            /*
-            Let's cheat React's rendering by using portals. Portals are a
-            feature of React where you can tell it to render into an
-            arbitrary DOM element. We can use this, combined with refs to give
-            us access to the underlying DOM nodes, to make React render into
-            a bunch of detached DOM elements, which we then incrementally
-            add to the document.
-            */
-
-            const [query, setQuery] = React.useState('');
-
-            /*
-            These are all refs because we need persistent but mutable values that won't trigger updates
-            when we change them.
-            */
-            const container = React.useRef(null);
-            const renderHandle = React.useRef(null);
-            const renderDivs = React.useRef([]);
-
-            function handleChange(e) {
-                setQuery(e.target.value);
-            }
-
-            React.useEffect(() => {
-                clearTimeout(renderHandle.current);
-                container.current.innerHTML = '';
-
-                function renderIncremental(divs, i = 0) {
-                    let numItems = 0;
-
-                    if (i < results.length) {
-                        while (numItems < MAX_INCREMENTAL && i < divs.length) {
-                            container.current.appendChild(divs[i]);
-                            numItems++;
-                            i++;
+                            startIndex = highlightMatch.index + highlightMatch[0].length;
                         }
 
-                        const handle = setTimeout(() => renderIncremental(divs, i), 0);
-                        renderHandle.current = handle;
-                    }
-                }
+                        html += match.text.slice(startIndex);
 
-                renderIncremental(renderDivs.current, 0);
-
-                // Cleanup function in case the thing unmounts
-                return () => {
-                    clearTimeout(renderHandle.current);
-                }
-            }, [query]);
-
-            const [results, summary] = runSearch(query);
-            const divs = new Array(results.length);
-            const portals = new Array(results.length);
-            for (let i = 0; i < results.length; i++) {
-                const r = results[i];
-
-                const div = document.createElement('div');
-                divs[i] = div;
-                portals[i] = ReactDOM.createPortal(
-                    e(SearchResult, {result: r}),
-                    div,
-                );
-            }
-
-            renderDivs.current = divs;
-
-            return e(React.Fragment, {},
-                e('input', {value: query, onChange: handleChange}),
-                e('div', {ref: container}, portals),
-            );
+                        return html;
+                    },
+                },
+                template: `
+                    <p v-html="rawHtml"></p>
+                `
+            })
+            app.mount('#vue-n-container');
         }
-        ReactDOM.render(e(ReactIncrementalPortals), document.querySelector('#rip-container'));
     </script>
 </body>
 
