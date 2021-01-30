@@ -67,17 +67,16 @@
     </style>
 
     <!-- Production libs -->
-    <!--
     <script src="react.production.min.js"></script>
     <script src="react-dom.production.min.js"></script>
     <script src="vue.global.prod.js"></script>
-    -->
 
     <!-- Development libs -->
-
+    <!--
     <script src="react.development.js"></script>
     <script src="react-dom.development.js"></script>
     <script src="vue.global.js"></script>
+    -->
 
 
     <script>
@@ -90,7 +89,7 @@
 <body>
     <div class="main">
         <div class="description">
-            An experiment to see if anything I do with React can match the performance of the search on the truly massive <a href="https://hero.handmade.network/episode/code">Handmade Hero episode guide</a>. View the source code for details on each algorithm.
+            An experiment to see if anything I do with React or Vue can match the performance of the search on the very large <a href="https://hero.handmade.network/episode/code">Handmade Hero episode guide</a>. View the source code for details on each algorithm.
         </div>
         <div class="cases">
             <div>
@@ -394,6 +393,7 @@
         ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
         ReactDOM.unstable_createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
 
+        // Render items using Vue as straightforwardly as possible.
         {
             const app = Vue.createApp({
                 data() {
@@ -447,6 +447,7 @@
             app.mount('#vue-n-container');
         }
 
+        // Render items incrementally using Vue
         {
             const app = Vue.createApp({
                 data() {
