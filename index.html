@@ -29,6 +29,25 @@
             padding: 0.8rem;
         }
 
+        .description p,
+        .desc p
+        {
+            margin: 0.6em 0;
+            line-height: 1.3em;
+        }
+
+        .description p:first-child,
+        .desc p:first-child
+        {
+            margin-top: 0;
+        }
+
+        .description p:last-child,
+        .desc p:last-child
+        {
+            margin-bottom: 0;
+        }
+
         .cases {
             display: flex;
             flex-grow: 1;
@@ -51,18 +70,26 @@
             width: 100%;
         }
 
+        h2 {
+            margin-bottom: 0.4em;
+        }
+
         h4 {
             margin: 0.8em 0 0.4em;
         }
 
-        p {
-            margin: 0.4em 0;
+        .desc {
+            margin: 0.4em 0 0.8em;
         }
 
         .highlight {
             background-color: yellow;
             border: 1px solid #999;
             border-radius: 3px;
+        }
+
+        img {
+            max-width: 100%;
         }
     </style>
 
@@ -78,6 +105,7 @@
     <script src="vue.global.js"></script>
     -->
 
+    <script src="svelte-app.js"></script>
 
     <script>
         const e = React.createElement;
@@ -89,11 +117,27 @@
 <body>
     <div class="main">
         <div class="description">
-            An experiment to see if anything I do with React or Vue can match the performance of the search on the very large <a href="https://hero.handmade.network/episode/code">Handmade Hero episode guide</a>. View the source code for details on each algorithm.
+            <p>
+                An experiment to see if anything I do with popular JavaScript frameworks can match the performance of the search on the very large <a href="https://hero.handmade.network/episode/code">Handmade Hero episode guide</a>. View the source code for details on each algorithm.
+            </p>
+            <p>
+                All of these execute the same search in the same amount of time. The differences you see here are purely from render times and DOM update times.
+            </p>
+            <p>
+                <strong>WARNING!</strong> Some of these, especially Svelte, are extremely heavy and may crash your tab or your browser.
+            </p>
         </div>
         <div class="cases">
             <div>
                 <h2>Vanilla (Naive)</h2>
+                <div class="desc">
+                    <p>
+                        This algorithm manually creates and inserts DOM nodes. This demonstrates the baseline performance for the "naive" method where all results are rendered at once.
+                    </p>
+                    <p>
+                        This method is generally fast enough that the bottleneck is the browser calculating layout after DOM operations are finished. It is still slow enough, though, to demonstrate the need for a smarter approach.
+                    </p>
+                </div>
                 <div id="vn-container">
                     <input id="vn-query">
                     <div id="vn-results"></div>
@@ -101,6 +145,11 @@
             </div>
             <div>
                 <h2>Vanilla (Incremental)</h2>
+                <div class="desc">
+                    <p>
+                        This algorithm incrementally renders items by adding a few search results to the DOM each frame. This is the approach used on the actual Handmade Hero episode guide, and it results in a consistently responsive UI.
+                    </p>
+                </div>
                 <div id="vi-container">
                     <input id="vi-query">
                     <div id="vi-results"></div>
@@ -108,22 +157,47 @@
             </div>
             <div>
                 <h2>React (Naive)</h2>
+                <div class="desc">
+                    <p>
+                        This renders all search results at once using React. It incurs framework overhead on top of the usual DOM work, increasing mount times and adding a diff cost when many search results are already rendered.
+                    </p>
+                </div>
                 <div id="rn-container"></div>
             </div>
             <div>
                 <h2>React (Naive, Concurrent Mode)</h2>
+                <div class="desc">
+                    <p>
+                        This is the same as the previous, but rendering using React's experimental concurrent mode. No significant difference is visible; apparently the update work is still synchronous enough to block user input.
+                    </p>
+                </div>
                 <div id="rn-c-container"></div>
             </div>
             <div>
                 <h2>React (Incremental)</h2>
+                <div class="desc">
+                    <p>
+                        This renders results incrementally using React, gradually increasing the size of the result set. This process does give a better initial user experience, but it gets slower as results load due to increasing diff times.
+                    </p>
+                </div>
                 <div id="ri-container"></div>
             </div>
             <div>
                 <h2>React (Incremental, Concurrent Mode)</h2>
+                <div class="desc">
+                    <p>
+                        This is the same as the previous but with concurrent mode. This time the user experience is noticeably better, with less hitching on user input. To my eye, the initial performance of this method is nearly as good as vanilla, but the diff cost results in hitching after a large result set has loaded.
+                    </p>
+                </div>
                 <div id="ri-c-container"></div>
             </div>
             <div>
                 <h2>Vue (Naive)</h2>
+                <div class="desc">
+                    <p>
+                        This renders all results at once using Vue. Update times are a bit worse here than in the naive React version.
+                    </p>
+                </div>
                 <div id="vue-n-container">
                     <input v-model="query">
                     <div>
@@ -135,6 +209,11 @@
             </div>
             <div>
                 <h2>Vue (Incremental)</h2>
+                <div class="desc">
+                    <p>
+                        Meh.
+                    </p>
+                </div>
                 <div id="vue-i-container">
                     <input v-model="query">
                     <div>
@@ -143,6 +222,18 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <div>
+                <h2>Svelte (Naive)</h2>
+                <div class="desc">
+                    <p>
+                        <img src="warning.gif">
+                    </p>
+                    <p>
+                        Svelte's performance here is <em>disastrous</em>. On my computer, the initial search takes nearly a full minute and allocates multiple gigabytes of memory. Interact with this at your own risk.
+                    </p>
+                </div>
+                <div id="svelte-n-container"></div>
             </div>
         </div>
     </div>
@@ -519,6 +610,9 @@
             });
             app.mount('#vue-i-container');
         }
+
+        // Render items using Svelte as straightforwardly as possible.
+        new svelteApp.SvelteNaive({ target: document.querySelector('#svelte-n-container') });
     </script>
 </body>
 
