@@ -180,6 +180,96 @@ var svelteApp = (function (exports) {
             block.o(local);
         }
     }
+    function outro_and_destroy_block(block, lookup) {
+        transition_out(block, 1, 1, () => {
+            lookup.delete(block.key);
+        });
+    }
+    function update_keyed_each(old_blocks, dirty, get_key, dynamic, ctx, list, lookup, node, destroy, create_each_block, next, get_context) {
+        let o = old_blocks.length;
+        let n = list.length;
+        let i = o;
+        const old_indexes = {};
+        while (i--)
+            old_indexes[old_blocks[i].key] = i;
+        const new_blocks = [];
+        const new_lookup = new Map();
+        const deltas = new Map();
+        i = n;
+        while (i--) {
+            const child_ctx = get_context(ctx, list, i);
+            const key = get_key(child_ctx);
+            let block = lookup.get(key);
+            if (!block) {
+                block = create_each_block(key, child_ctx);
+                block.c();
+            }
+            else if (dynamic) {
+                block.p(child_ctx, dirty);
+            }
+            new_lookup.set(key, new_blocks[i] = block);
+            if (key in old_indexes)
+                deltas.set(key, Math.abs(i - old_indexes[key]));
+        }
+        const will_move = new Set();
+        const did_move = new Set();
+        function insert(block) {
+            transition_in(block, 1);
+            block.m(node, next);
+            lookup.set(block.key, block);
+            next = block.first;
+            n--;
+        }
+        while (o && n) {
+            const new_block = new_blocks[n - 1];
+            const old_block = old_blocks[o - 1];
+            const new_key = new_block.key;
+            const old_key = old_block.key;
+            if (new_block === old_block) {
+                // do nothing
+                next = new_block.first;
+                o--;
+                n--;
+            }
+            else if (!new_lookup.has(old_key)) {
+                // remove old block
+                destroy(old_block, lookup);
+                o--;
+            }
+            else if (!lookup.has(new_key) || will_move.has(new_key)) {
+                insert(new_block);
+            }
+            else if (did_move.has(old_key)) {
+                o--;
+            }
+            else if (deltas.get(new_key) > deltas.get(old_key)) {
+                did_move.add(new_key);
+                insert(new_block);
+            }
+            else {
+                will_move.add(old_key);
+                o--;
+            }
+        }
+        while (o--) {
+            const old_block = old_blocks[o];
+            if (!new_lookup.has(old_block.key))
+                destroy(old_block, lookup);
+        }
+        while (n)
+            insert(new_blocks[n - 1]);
+        return new_blocks;
+    }
+    function validate_each_keys(ctx, list, get_context, get_key) {
+        const keys = new Set();
+        for (let i = 0; i < list.length; i++) {
+            const key = get_key(get_context(ctx, list, i));
+            if (keys.has(key)) {
+                throw new Error('Cannot have duplicate keys in a keyed each');
+            }
+            keys.add(key);
+        }
+    }
     function create_component(block) {
         block && block.c();
     }
@@ -404,7 +494,7 @@ var svelteApp = (function (exports) {
     			span = element("span");
     			t = text(t_value);
     			attr_dev(span, "class", "highlight");
-    			add_location(span, file, 26, 12, 616);
+    			add_location(span, file, 26, 12, 644);
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, span, anchor);
@@ -524,7 +614,7 @@ var svelteApp = (function (exports) {
     				each_blocks[i].c();
     			}
 
-    			add_location(p, file, 20, 0, 484);
+    			add_location(p, file, 20, 0, 512);
     		},
     		l: function claim(nodes) {
     			throw new Error("options.hydrate only works if the component was compiled with the `hydratable: true` option");
@@ -585,11 +675,11 @@ var svelteApp = (function (exports) {
     }
 
     function instance($$self, $$props, $$invalidate) {
+    	let pieces;
     	let { $$slots: slots = {}, $$scope } = $$props;
     	validate_slots("SearchResultMatch", slots, []);
     	let { result } = $$props;
     	let { match } = $$props;
-    	let pieces = [];
     	const writable_props = ["result", "match"];
 
     	Object.keys($$props).forEach(key => {
@@ -614,9 +704,9 @@ var svelteApp = (function (exports) {
     	}
 
     	$$self.$$.update = () => {
-    		if ($$self.$$.dirty & /*match, result, pieces*/ 7) {
-    			 {
-    				$$invalidate(1, pieces = []);
+    		if ($$self.$$.dirty & /*match, result*/ 5) {
+    			 $$invalidate(1, pieces = (() => {
+    				const pieces = [];
     				let startIndex = 0;
 
     				for (const highlightMatch of match.text.matchAll(result.query)) {
@@ -626,7 +716,8 @@ var svelteApp = (function (exports) {
     				}
 
     				pieces.push(match.text.slice(startIndex));
-    			}
+    				return pieces;
+    			})());
     		}
     	};
 
@@ -683,8 +774,9 @@ var svelteApp = (function (exports) {
     	return child_ctx;
     }
 
-    // (8:0) {#each result.matches as m}
-    function create_each_block$1(ctx) {
+    // (8:0) {#each result.matches as m (m.prettyTime)}
+    function create_each_block$1(key_1, ctx) {
+    	let first;
     	let searchresultmatch;
     	let current;
 
@@ -697,14 +789,20 @@ var svelteApp = (function (exports) {
     		});
 
     	const block = {
+    		key: key_1,
+    		first: null,
     		c: function create() {
+    			first = empty();
     			create_component(searchresultmatch.$$.fragment);
+    			this.first = first;
     		},
     		m: function mount(target, anchor) {
+    			insert_dev(target, first, anchor);
     			mount_component(searchresultmatch, target, anchor);
     			current = true;
     		},
-    		p: function update(ctx, dirty) {
+    		p: function update(new_ctx, dirty) {
+    			ctx = new_ctx;
     			const searchresultmatch_changes = {};
     			if (dirty & /*result*/ 1) searchresultmatch_changes.result = /*result*/ ctx[0];
     			if (dirty & /*result*/ 1) searchresultmatch_changes.match = /*m*/ ctx[1];
@@ -720,6 +818,7 @@ var svelteApp = (function (exports) {
     			current = false;
     		},
     		d: function destroy(detaching) {
+    			if (detaching) detach_dev(first);
     			destroy_component(searchresultmatch, detaching);
     		}
     	};
@@ -728,7 +827,7 @@ var svelteApp = (function (exports) {
     		block,
     		id: create_each_block$1.name,
     		type: "each",
-    		source: "(8:0) {#each result.matches as m}",
+    		source: "(8:0) {#each result.matches as m (m.prettyTime)}",
     		ctx
     	});
 
@@ -740,19 +839,20 @@ var svelteApp = (function (exports) {
     	let t0_value = /*result*/ ctx[0].episode.title + "";
     	let t0;
     	let t1;
+    	let each_blocks = [];
+    	let each_1_lookup = new Map();
     	let each_1_anchor;
     	let current;
     	let each_value = /*result*/ ctx[0].matches;
     	validate_each_argument(each_value);
-    	let each_blocks = [];
+    	const get_key = ctx => /*m*/ ctx[1].prettyTime;
+    	validate_each_keys(ctx, each_value, get_each_context$1, get_key);
 
     	for (let i = 0; i < each_value.length; i += 1) {
-    		each_blocks[i] = create_each_block$1(get_each_context$1(ctx, each_value, i));
+    		let child_ctx = get_each_context$1(ctx, each_value, i);
+    		let key = get_key(child_ctx);
+    		each_1_lookup.set(key, each_blocks[i] = create_each_block$1(key, child_ctx));
     	}
-
-    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
-    		each_blocks[i] = null;
-    	});
 
     	const block = {
     		c: function create() {
@@ -788,28 +888,9 @@ var svelteApp = (function (exports) {
     			if (dirty & /*result*/ 1) {
     				each_value = /*result*/ ctx[0].matches;
     				validate_each_argument(each_value);
-    				let i;
-
-    				for (i = 0; i < each_value.length; i += 1) {
-    					const child_ctx = get_each_context$1(ctx, each_value, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(child_ctx, dirty);
-    						transition_in(each_blocks[i], 1);
-    					} else {
-    						each_blocks[i] = create_each_block$1(child_ctx);
-    						each_blocks[i].c();
-    						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(each_1_anchor.parentNode, each_1_anchor);
-    					}
-    				}
-
     				group_outros();
-
-    				for (i = each_value.length; i < each_blocks.length; i += 1) {
-    					out(i);
-    				}
-
+    				validate_each_keys(ctx, each_value, get_each_context$1, get_key);
+    				each_blocks = update_keyed_each(each_blocks, dirty, get_key, 1, ctx, each_value, each_1_lookup, each_1_anchor.parentNode, outro_and_destroy_block, create_each_block$1, each_1_anchor, get_each_context$1);
     				check_outros();
     			}
     		},
@@ -823,8 +904,6 @@ var svelteApp = (function (exports) {
     			current = true;
     		},
     		o: function outro(local) {
-    			each_blocks = each_blocks.filter(Boolean);
-
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				transition_out(each_blocks[i]);
     			}
@@ -834,7 +913,11 @@ var svelteApp = (function (exports) {
     		d: function destroy(detaching) {
     			if (detaching) detach_dev(h4);
     			if (detaching) detach_dev(t1);
-    			destroy_each(each_blocks, detaching);
+
+    			for (let i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].d(detaching);
+    			}
+
     			if (detaching) detach_dev(each_1_anchor);
     		}
     	};
@@ -915,8 +998,8 @@ var svelteApp = (function (exports) {
     	return child_ctx;
     }
 
-    // (10:4) {#each results as r}
-    function create_each_block$2(ctx) {
+    // (10:4) {#each results as r (r.episode.day)}
+    function create_each_block$2(key_1, ctx) {
     	let div;
     	let searchresult;
     	let t;
@@ -928,11 +1011,14 @@ var svelteApp = (function (exports) {
     		});
 
     	const block = {
+    		key: key_1,
+    		first: null,
     		c: function create() {
     			div = element("div");
     			create_component(searchresult.$$.fragment);
     			t = space();
-    			add_location(div, file$2, 10, 8, 207);
+    			add_location(div, file$2, 10, 8, 223);
+    			this.first = div;
     		},
     		m: function mount(target, anchor) {
     			insert_dev(target, div, anchor);
@@ -940,7 +1026,8 @@ var svelteApp = (function (exports) {
     			append_dev(div, t);
     			current = true;
     		},
-    		p: function update(ctx, dirty) {
+    		p: function update(new_ctx, dirty) {
+    			ctx = new_ctx;
     			const searchresult_changes = {};
     			if (dirty & /*results*/ 2) searchresult_changes.result = /*r*/ ctx[4];
     			searchresult.$set(searchresult_changes);
@@ -964,7 +1051,7 @@ var svelteApp = (function (exports) {
     		block,
     		id: create_each_block$2.name,
     		type: "each",
-    		source: "(10:4) {#each results as r}",
+    		source: "(10:4) {#each results as r (r.episode.day)}",
     		ctx
     	});
 
@@ -975,20 +1062,21 @@ var svelteApp = (function (exports) {
     	let input;
     	let t;
     	let div;
+    	let each_blocks = [];
+    	let each_1_lookup = new Map();
     	let current;
     	let mounted;
     	let dispose;
     	let each_value = /*results*/ ctx[1];
     	validate_each_argument(each_value);
-    	let each_blocks = [];
+    	const get_key = ctx => /*r*/ ctx[4].episode.day;
+    	validate_each_keys(ctx, each_value, get_each_context$2, get_key);
 
     	for (let i = 0; i < each_value.length; i += 1) {
-    		each_blocks[i] = create_each_block$2(get_each_context$2(ctx, each_value, i));
+    		let child_ctx = get_each_context$2(ctx, each_value, i);
+    		let key = get_key(child_ctx);
+    		each_1_lookup.set(key, each_blocks[i] = create_each_block$2(key, child_ctx));
     	}
-
-    	const out = i => transition_out(each_blocks[i], 1, 1, () => {
-    		each_blocks[i] = null;
-    	});
 
     	const block = {
     		c: function create() {
@@ -1031,28 +1119,9 @@ var svelteApp = (function (exports) {
     			if (dirty & /*results*/ 2) {
     				each_value = /*results*/ ctx[1];
     				validate_each_argument(each_value);
-    				let i;
-
-    				for (i = 0; i < each_value.length; i += 1) {
-    					const child_ctx = get_each_context$2(ctx, each_value, i);
-
-    					if (each_blocks[i]) {
-    						each_blocks[i].p(child_ctx, dirty);
-    						transition_in(each_blocks[i], 1);
-    					} else {
-    						each_blocks[i] = create_each_block$2(child_ctx);
-    						each_blocks[i].c();
-    						transition_in(each_blocks[i], 1);
-    						each_blocks[i].m(div, null);
-    					}
-    				}
-
     				group_outros();
-
-    				for (i = each_value.length; i < each_blocks.length; i += 1) {
-    					out(i);
-    				}
-
+    				validate_each_keys(ctx, each_value, get_each_context$2, get_key);
+    				each_blocks = update_keyed_each(each_blocks, dirty, get_key, 1, ctx, each_value, each_1_lookup, div, outro_and_destroy_block, create_each_block$2, null, get_each_context$2);
     				check_outros();
     			}
     		},
@@ -1066,8 +1135,6 @@ var svelteApp = (function (exports) {
     			current = true;
     		},
     		o: function outro(local) {
-    			each_blocks = each_blocks.filter(Boolean);
-
     			for (let i = 0; i < each_blocks.length; i += 1) {
     				transition_out(each_blocks[i]);
     			}
@@ -1078,7 +1145,11 @@ var svelteApp = (function (exports) {
     			if (detaching) detach_dev(input);
     			if (detaching) detach_dev(t);
     			if (detaching) detach_dev(div);
-    			destroy_each(each_blocks, detaching);
+
+    			for (let i = 0; i < each_blocks.length; i += 1) {
+    				each_blocks[i].d();
+    			}
+
     			mounted = false;
     			dispose();
     		}

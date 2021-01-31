@@ -7,7 +7,7 @@
 
 <input bind:value={query}>
 <div>
-    {#each results as r}
+    {#each results as r (r.episode.day)}
         <div>
             <SearchResult result={r} />
         </div>

@@ -5,6 +5,6 @@
 </script>
 
 <h4>{ result.episode.title }</h4>
-{#each result.matches as m}
+{#each result.matches as m (m.prettyTime)}
     <SearchResultMatch result={result} match={m} />
 {/each}

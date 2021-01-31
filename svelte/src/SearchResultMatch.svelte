@@ -2,10 +2,8 @@
     export let result;
     export let match;
 
-    let pieces = [];
-
-    $: {
-        pieces = [];
+    $: pieces = (() => {
+        const pieces = [];
 
         let startIndex = 0;
         for (const highlightMatch of match.text.matchAll(result.query)) {
@@ -15,7 +13,9 @@
             startIndex = highlightMatch.index + highlightMatch[0].length;
         }
         pieces.push(match.text.slice(startIndex));
-    }
+
+        return pieces;
+    })();
 </script>
 
 <p>
