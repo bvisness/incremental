@@ -143,7 +143,7 @@
                     All of these execute the same search in the same amount of time. The differences you see here are purely from render times and DOM update times.
                 </p>
                 <p>
-                    <strong>WARNING!</strong> Some of these, especially Svelte, are extremely heavy and may crash your tab or your browser.
+                    <strong>WARNING!</strong> Some of these are extremely heavy and may lock up your tab or your browser.
                 </p>
             </div>
             <div class="links">
@@ -205,7 +205,7 @@
                 <h2>React (Incremental)</h2>
                 <div class="desc">
                     <p>
-                        This renders results incrementally using React, gradually increasing the size of the result set. This process does give a better initial user experience, but it gets slower as results load due to increasing diff times.
+                        This renders results incrementally using React, gradually increasing the size of the result set. React does ok, but the increasing framework overhead (including diffing) grows as more items render.
                     </p>
                 </div>
                 <div id="ri-container"></div>
@@ -223,7 +223,7 @@
                 <h2>Vue (Naive)</h2>
                 <div class="desc">
                     <p>
-                        This renders all results at once using Vue. Update times are a bit worse here than in the naive React version.
+                        This renders all results at once using Vue. Vue was by far the worst performer in these tests - by my timing, Vue is generally about 2x slower than React and 3x slower than vanilla.
                     </p>
                 </div>
                 <div id="vue-n-container">
@@ -239,7 +239,7 @@
                 <h2>Vue (Incremental)</h2>
                 <div class="desc">
                     <p>
-                        Meh.
+                        I'll say this: Vue doesn't get any faster here.
                     </p>
                 </div>
                 <div id="vue-i-container">
@@ -255,13 +255,19 @@
                 <h2>Svelte (Naive)</h2>
                 <div class="desc">
                     <p>
-                        <img src="warning.gif">
-                    </p>
-                    <p>
-                        Svelte's performance here is <em>disastrous</em>. On my computer, in Firefox, the initial search takes nearly a minute and allocates multiple gigabytes of memory. Interact with this at your own risk.
+                        Despite Svelte's claims of speed, it was generally middle of the pack in terms of performance. Here I measured it to be about 1.5x slower than React.
                     </p>
                 </div>
                 <div id="svelte-n-container"></div>
+            </div>
+            <div>
+                <h2>Svelte (Incremental)</h2>
+                <div class="desc">
+                    <p>
+                        Svelte remained middle of the pack here as well.
+                    </p>
+                </div>
+                <div id="svelte-i-container"></div>
             </div>
         </div>
     </div>
@@ -399,6 +405,7 @@
                 renderHandle = setTimeout(() => renderIncremental(results, i), 0);
             } else {
                 rendering = false;
+                console.log('done with incremental render');
             }
         }
 
@@ -495,6 +502,8 @@
                 if (maxIndex < results.length) {
                     const handle = setTimeout(() => setMaxIndex(maxIndex + MAX_INCREMENTAL), 0);
                     renderHandle.current = handle;
+                } else {
+                    console.log('done with incremental render');
                 }
             });
 
@@ -584,6 +593,7 @@
 
                         const [newResults, newSummary] = runSearch(query);
                         this.results = newResults;
+                        this.maxIndex = MAX_INCREMENTAL;
                     },
                 },
                 updated() {
@@ -592,6 +602,8 @@
                             this.maxIndex += MAX_INCREMENTAL;
                         }, 0);
                         this.renderHandle = handle;
+                    } else {
+                        console.log('done with incremental render');
                     }
                 },
                 computed: {
@@ -641,6 +653,9 @@
 
         // Render items using Svelte as straightforwardly as possible.
         new svelteApp.SvelteNaive({ target: document.querySelector('#svelte-n-container') });
+
+        // Render items incrementally using Svelte.
+        new svelteApp.SvelteIncremental({ target: document.querySelector('#svelte-i-container') });
     </script>
 </body>
 
