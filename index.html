@@ -477,7 +477,7 @@
             );
         }
         ReactDOM.render(e(ReactNaive), document.querySelector('#rn-container'));
-        ReactDOM.unstable_createRoot(document.querySelector('#rn-c-container')).render(e(ReactNaive));
+        ReactDOM.createRoot(document.querySelector('#rn-c-container')).render(e(ReactNaive));
 
         /*
         Renders items incrementally using React.
@@ -522,7 +522,7 @@
             );
         }
         ReactDOM.render(e(ReactIncremental), document.querySelector('#ri-container'));
-        ReactDOM.unstable_createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
+        ReactDOM.createRoot(document.querySelector('#ri-c-container')).render(e(ReactIncremental));
 
         // Render items using Vue as straightforwardly as possible.
         {
